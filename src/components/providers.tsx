@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { ThemeProvider } from "next-themes";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { TRPCReactProvider } from "@/trpc/react";
@@ -14,10 +15,17 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
   }, [pathname]);
 
   return (
-    <TRPCReactProvider>
-      {children}
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <TRPCReactProvider>
+        {children}
 
-      <Toaster richColors position="top-right" />
-    </TRPCReactProvider>
+        <Toaster richColors position="top-right" />
+      </TRPCReactProvider>
+    </ThemeProvider>
   );
 };
