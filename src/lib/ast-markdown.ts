@@ -1,4 +1,4 @@
-import type { Poem } from "@prisma/client";
+import type { Poem } from "@/server/db/schema";
 import matter from "gray-matter";
 import { convert } from "pinyin-pro";
 import remarkGfm from "remark-gfm";

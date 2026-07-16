@@ -1,7 +1,9 @@
+import { eq } from "drizzle-orm";
 import fs from "fs-extra";
 import { pinyin } from "pinyin-pro";
 import slugify from "slugify";
-import { db } from "@/server/db";
+import { poems } from "@/server/db/schema";
+import { db } from "../db";
 
 const { readJsonSync, readdirSync } = fs;
 
@@ -25,10 +27,7 @@ async function processBatch(items: any[], type: "ci" | "poet") {
           item.baidu + item.so360 + item.bing + item.bing_en + item.google;
 
         try {
-          await db.poem.update({
-            where: { slug },
-            data: { visits },
-          });
+          await db.update(poems).set({ visits }).where(eq(poems.slug, slug));
           processedCount++;
           // Optional: log individual success if needed, but it might be too noisy
         } catch (err) {

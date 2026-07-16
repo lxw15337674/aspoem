@@ -4,7 +4,6 @@ import { dynastyRouter } from "./router/dynasty";
 import { poemDiscoverRouter, poemRouter } from "./router/poem";
 import { protectedDynastyRouter } from "./router/protected/dynasty";
 import { protectedPoemRouter } from "./router/protected/poem";
-import { webhookRouter } from "./router/webhoook";
 import { createCallerFactory, createTRPCRouter } from "./trpc";
 
 export const appRouter = createTRPCRouter({
@@ -15,7 +14,6 @@ export const appRouter = createTRPCRouter({
   },
   dynasty: dynastyRouter,
   author: authorRouter,
-  webhook: webhookRouter,
   protectedPoem: protectedPoemRouter,
   protectedDynasty: protectedDynastyRouter,
 });

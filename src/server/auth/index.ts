@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 
-import { prismaAdapter } from "better-auth/adapters/prisma";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 import { createAuthMiddleware } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
@@ -10,12 +10,14 @@ import { cache } from "react";
 import { env } from "@/env";
 
 import { db } from "../db";
+import { account, session, user, verification } from "../db/schema";
 
 import "server-only";
 
 export const auth = betterAuth({
-  database: prismaAdapter(db, {
-    provider: "postgresql",
+  database: drizzleAdapter(db, {
+    provider: "sqlite",
+    schema: { user, session, account, verification },
   }),
   secret: env.BETTER_AUTH_SECRET,
   emailAndPassword: { enabled: true },

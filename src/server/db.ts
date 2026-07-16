@@ -1,18 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { env } from "cloudflare:workers";
+import { drizzle } from "drizzle-orm/d1";
 
-import { env } from "@/env";
+import * as schema from "./db/schema";
 
-function createPrismaClient() {
-  return new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
-}
+// Workers + 本地 miniflare 同走 D1 binding（wrangler.jsonc 的 d1_databases binding=DB）
+export const db = drizzle(env.DB, { schema });
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrismaClient> | undefined;
-};
-
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+export type DB = typeof db;
+export { schema };

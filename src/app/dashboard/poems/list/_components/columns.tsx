@@ -1,4 +1,4 @@
-import type { Author, Poem } from "@prisma/client";
+import type { Author, Poem } from "@/server/db/schema";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";

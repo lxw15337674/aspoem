@@ -1,6 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import { and, count, desc, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
 import { z } from "zod";
+import { authors, poems } from "@/server/db/schema";
 import { protectedProcedure } from "../../trpc";
 
 export const protectedPoemRouter = {
@@ -18,43 +19,55 @@ export const protectedPoemRouter = {
     .query(async ({ ctx, input }) => {
       const { page, pageSize, keyword, authorId, dynastyIds } = input;
 
-      // Build where conditions
-      const where: Prisma.PoemWhereInput = {};
+      const conds: SQL[] = [];
 
       if (keyword) {
-        where.OR = [
-          { title: { contains: keyword } },
-          { searchText: { contains: keyword } },
-        ];
+        const kw = or(
+          like(poems.title, `%${keyword}%`),
+          like(poems.searchText, `%${keyword}%`),
+        );
+        if (kw) conds.push(kw);
       }
 
       if (authorId) {
-        where.authorId = authorId;
+        conds.push(eq(poems.authorId, authorId));
       }
 
       if (dynastyIds && dynastyIds.length > 0) {
-        where.author = {
-          dynastyId: { in: dynastyIds },
-        };
+        conds.push(
+          inArray(
+            poems.authorId,
+            ctx.db
+              .select({ id: authors.id })
+              .from(authors)
+              .where(inArray(authors.dynastyId, dynastyIds)),
+          ),
+        );
       }
 
+      const where = conds.length ? and(...conds) : undefined;
       const skip = (page - 1) * pageSize;
 
-      // Query total and items in parallel
-      const [total, items] = await Promise.all([
-        ctx.db.poem.count({ where }),
-        ctx.db.poem.findMany({
+      const [[totalRow], rows] = await Promise.all([
+        ctx.db.select({ c: count() }).from(poems).where(where),
+        ctx.db.query.poems.findMany({
           where,
-          skip,
-          take: pageSize,
-          orderBy: { createdAt: "desc" },
-          include: {
+          offset: skip,
+          limit: pageSize,
+          orderBy: [desc(poems.createdAt)],
+          with: {
             dynasty: true,
             author: true,
-            tags: true,
+            poemsToTags: { columns: {}, with: { tag: true } },
           },
         }),
       ]);
+
+      const total = totalRow?.c ?? 0;
+      const items = rows.map(({ poemsToTags, ...p }) => ({
+        ...p,
+        tags: poemsToTags.map((x) => x.tag),
+      }));
 
       const totalPages = Math.ceil(total / pageSize);
 

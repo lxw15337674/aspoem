@@ -1,14 +1,16 @@
 // 读取 poems.paragraphs 判断是否是 isOrderliness
 // 执行 tsx scripts/update-db-is-orderliness.ts [作者目录]
 
+import { inArray } from "drizzle-orm";
 import { isOrderliness } from "@/lib/utils";
-import { db } from "@/server/db";
+import { poems } from "@/server/db/schema";
+import { db } from "./db";
 
 async function updateDbIsOrderliness() {
-  const poems = await db.poem.findMany();
+  const all = await db.query.poems.findMany();
 
-  const orderlinessPoems = poems.filter((poem) =>
-    isOrderliness(poem.paragraphs),
+  const orderlinessPoems = all.filter((poem) =>
+    isOrderliness(poem.paragraphs as string[]),
   );
 
   console.log(`Found ${orderlinessPoems.length} orderliness poems`);
@@ -22,14 +24,15 @@ async function updateDbIsOrderliness() {
     const end = Math.min(start + BATCH_SIZE, orderlinessPoems.length);
     const batch = orderlinessPoems.slice(start, end);
 
-    await db.poem.updateMany({
-      where: {
-        id: { in: batch.map((p) => p.id) },
-      },
-      data: {
-        isOrderliness: true,
-      },
-    });
+    await db
+      .update(poems)
+      .set({ isOrderliness: true })
+      .where(
+        inArray(
+          poems.id,
+          batch.map((p) => p.id),
+        ),
+      );
 
     console.log(
       `Processed batch ${i + 1}/${totalBatches} (${end}/${orderlinessPoems.length})`,

@@ -1,5 +1,5 @@
 import { SidebarContent, SidebarProvider } from "@/components/ui/sidebar";
-import { api } from "@/trpc/server";
+import { publicApi as api } from "@/trpc/server";
 import { SidebarLeft } from "./_components/sidebar-left";
 
 export default async function Layout({

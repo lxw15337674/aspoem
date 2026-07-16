@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parseMarkdownToJson } from "@/lib/ast-markdown";
 import { syncPoemToDatabase } from "@/lib/sync-poem-to-db";
-import { db } from "@/server/db";
+import type { DB } from "@/server/db";
+import { db } from "../db";
 
 async function initMarkdownToDatabase() {
   try {
@@ -34,7 +35,7 @@ async function initMarkdownToDatabase() {
         const poemData = await parseMarkdownToJson(markdownContent);
 
         // 同步到数据库
-        await syncPoemToDatabase(poemData);
+        await syncPoemToDatabase(db as unknown as DB, poemData);
 
         successCount++;
         console.log(`✓ 成功处理: ${poemData.title}`);
@@ -52,8 +53,6 @@ async function initMarkdownToDatabase() {
     console.log("=".repeat(50));
   } catch (error) {
     console.error("同步过程中发生错误:", error);
-  } finally {
-    await db.$disconnect();
   }
 }
 

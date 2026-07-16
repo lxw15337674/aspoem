@@ -1,6 +1,33 @@
+import { and, asc, count, eq, gt, gte, inArray, or } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
 import { z } from "zod";
+import { authors, dynasties, poems } from "@/server/db/schema";
 import { publicProcedure } from "../trpc";
+
+// 一次分组查询算出每个作者的诗词数，避免 N+1
+async function poemCountByAuthor(
+  db: typeof import("@/server/db")["db"],
+  authorIds: string[],
+) {
+  if (authorIds.length === 0) return new Map<string, number>();
+  const rows = await db
+    .select({ authorId: poems.authorId, c: count() })
+    .from(poems)
+    .where(inArray(poems.authorId, authorIds))
+    .groupBy(poems.authorId);
+  return new Map(rows.map((r) => [r.authorId, r.c]));
+}
+
+const authorListColumns = {
+  id: true,
+  name: true,
+  slug: true,
+  introduce: true,
+} as const;
+
+const authorListWith = {
+  dynasty: { columns: { name: true, slug: true } },
+} as const;
 
 export const authorRouter = {
   // cursor分页接口
@@ -15,46 +42,54 @@ export const authorRouter = {
     .query(async ({ ctx, input }) => {
       const { dynastySlug, limit, cursor } = input;
 
-      const authors = await ctx.db.author.findMany({
-        where: dynastySlug
-          ? {
-              dynasty: {
-                slug: dynastySlug,
-              },
-            }
-          : undefined,
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          introduce: true,
-          dynasty: {
-            select: {
-              name: true,
-              slug: true,
-            },
-          },
-          _count: {
-            select: {
-              poems: true,
-            },
-          },
-        },
+      let dynastyId: string | undefined;
+      if (dynastySlug) {
+        const d = await ctx.db.query.dynasties.findFirst({
+          columns: { id: true },
+          where: eq(dynasties.slug, dynastySlug),
+        });
+        dynastyId = d?.id ?? "__none__"; // 不存在则匹配空集
+      }
+
+      let where = dynastyId ? eq(authors.dynastyId, dynastyId) : undefined;
+      if (cursor) {
+        const c = await ctx.db.query.authors.findFirst({
+          columns: { id: true, name: true },
+          where: eq(authors.id, cursor),
+        });
+        if (c) {
+          const keyset = or(
+            gt(authors.name, c.name),
+            and(eq(authors.name, c.name), gte(authors.id, cursor)),
+          );
+          where = where && keyset ? and(where, keyset) : (keyset ?? where);
+        }
+      }
+
+      const rows = await ctx.db.query.authors.findMany({
+        columns: authorListColumns,
+        with: authorListWith,
+        where,
+        orderBy: [asc(authors.name), asc(authors.id)],
+        limit: limit + 1,
       });
 
       let nextCursor: typeof cursor | undefined;
-      if (authors.length > limit) {
-        const nextItem = authors.pop();
-        nextCursor = nextItem!.id;
+      if (rows.length > limit) {
+        nextCursor = rows.pop()!.id;
       }
 
-      return {
-        items: authors,
-        nextCursor,
-      };
+      const countMap = await poemCountByAuthor(
+        ctx.db,
+        rows.map((r) => r.id),
+      );
+
+      const items = rows.map((r) => ({
+        ...r,
+        _count: { poems: countMap.get(r.id) ?? 0 },
+      }));
+
+      return { items, nextCursor };
     }),
 
   // page分页接口
@@ -70,52 +105,42 @@ export const authorRouter = {
       const { dynastySlug, pageSize, page } = input;
       const skip = (page - 1) * pageSize;
 
-      const whereClause = dynastySlug
-        ? {
-            dynasty: {
-              slug: dynastySlug,
-            },
-          }
-        : undefined;
+      let dynastyId: string | undefined;
+      if (dynastySlug) {
+        const d = await ctx.db.query.dynasties.findFirst({
+          columns: { id: true },
+          where: eq(dynasties.slug, dynastySlug),
+        });
+        dynastyId = d?.id ?? "__none__";
+      }
+      const where = dynastyId ? eq(authors.dynastyId, dynastyId) : undefined;
 
-      const [authors, total] = await Promise.all([
-        ctx.db.author.findMany({
-          where: whereClause,
-          take: pageSize,
-          skip,
-          orderBy: [{ name: "asc" }, { id: "asc" }],
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            introduce: true,
-            dynasty: {
-              select: {
-                name: true,
-                slug: true,
-              },
-            },
-            _count: {
-              select: {
-                poems: true,
-              },
-            },
-          },
+      const [rows, [totalRow]] = await Promise.all([
+        ctx.db.query.authors.findMany({
+          columns: authorListColumns,
+          with: authorListWith,
+          where,
+          orderBy: [asc(authors.name), asc(authors.id)],
+          limit: pageSize,
+          offset: skip,
         }),
-        ctx.db.author.count({
-          where: whereClause,
-        }),
+        ctx.db.select({ c: count() }).from(authors).where(where),
       ]);
+
+      const total = totalRow?.c ?? 0;
+
+      const countMap = await poemCountByAuthor(
+        ctx.db,
+        rows.map((r) => r.id),
+      );
+      const items = rows.map((r) => ({
+        ...r,
+        _count: { poems: countMap.get(r.id) ?? 0 },
+      }));
 
       const totalPages = Math.ceil(total / pageSize);
 
-      return {
-        items: authors,
-        pageSize,
-        page,
-        totalPages,
-        total,
-      };
+      return { items, pageSize, page, totalPages, total };
     }),
 
   findBySlug: publicProcedure
@@ -127,33 +152,24 @@ export const authorRouter = {
     .query(async ({ ctx, input }) => {
       const { slug } = input;
 
-      return await ctx.db.author.findUnique({
-        where: { slug },
-        select: {
+      const row = await ctx.db.query.authors.findFirst({
+        where: eq(authors.slug, slug),
+        columns: {
           id: true,
           name: true,
           slug: true,
           introduce: true,
           birthDate: true,
           deathDate: true,
-          dynasty: {
-            select: {
-              name: true,
-              slug: true,
-            },
-          },
-          poems: {
-            select: {
-              title: true,
-              slug: true,
-            },
-          },
-          _count: {
-            select: {
-              poems: true,
-            },
-          },
+        },
+        with: {
+          dynasty: { columns: { name: true, slug: true } },
+          poems: { columns: { title: true, slug: true } },
         },
       });
+
+      if (!row) return null;
+
+      return { ...row, _count: { poems: row.poems.length } };
     }),
 } satisfies TRPCRouterRecord;

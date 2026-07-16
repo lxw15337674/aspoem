@@ -2,7 +2,10 @@ import { BookOpenIcon, CalendarIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/trpc/server";
+import { publicApi as api } from "@/trpc/server";
+
+// ISR：读页缓存，降 D1 读压
+export const revalidate = 600;
 
 interface PageProps {
   params: Promise<{ slug: string }>;

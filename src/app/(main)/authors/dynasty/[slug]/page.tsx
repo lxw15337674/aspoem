@@ -1,5 +1,8 @@
 import { notFound, redirect } from "next/navigation";
-import { api } from "@/trpc/server";
+import { publicApi as api } from "@/trpc/server";
+
+// ISR：读页缓存，降 D1 读压
+export const revalidate = 600;
 import { AuthorTable } from "../../_components/author-table";
 
 interface PageProps {

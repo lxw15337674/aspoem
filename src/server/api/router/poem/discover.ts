@@ -1,35 +1,15 @@
+import { count, desc, eq, lte } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
 import z from "zod";
+import { dynasties, poems } from "@/server/db/schema";
 import { publicProcedure } from "../../trpc";
-
-export const listSelect = {
-  id: true,
-  slug: true,
-  title: true,
-  titleSlug: true,
-  titlePinyin: true,
-  paragraphs: true,
-  visits: true,
-  createdAt: true,
-  author: {
-    select: {
-      name: true,
-      slug: true,
-      dynasty: {
-        select: {
-          name: true,
-          slug: true,
-        },
-      },
-    },
-  },
-  tags: {
-    select: {
-      name: true,
-      slug: true,
-    },
-  },
-};
+import {
+  keysetOrder,
+  keysetWhere,
+  listColumns,
+  listWith,
+  mapTags,
+} from "./_helpers";
 
 export type ApiPoemListItems = Awaited<
   ReturnType<typeof poemDiscoverRouter.getHotList>
@@ -46,23 +26,21 @@ export const poemDiscoverRouter = {
     .query(async ({ ctx, input }) => {
       const { limit, cursor } = input;
 
-      const poems = await ctx.db.poem.findMany({
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        orderBy: [{ visits: "desc" }, { id: "desc" }],
-        select: listSelect,
+      const rows = await ctx.db.query.poems.findMany({
+        columns: listColumns,
+        with: listWith,
+        where: await keysetWhere(ctx.db, cursor, "visits"),
+        orderBy: keysetOrder("visits"),
+        limit: limit + 1,
       });
+      const items = rows.map(mapTags);
 
       let nextCursor: typeof cursor;
-      if (poems.length > limit) {
-        const nextItem = poems.pop(); // 移除多取的那一个
-        nextCursor = nextItem!.id;
+      if (items.length > limit) {
+        nextCursor = items.pop()!.id;
       }
 
-      return {
-        items: poems,
-        nextCursor,
-      };
+      return { items, nextCursor };
     }),
 
   getLatestList: publicProcedure
@@ -75,23 +53,21 @@ export const poemDiscoverRouter = {
     .query(async ({ ctx, input }) => {
       const { limit, cursor } = input;
 
-      const poems = await ctx.db.poem.findMany({
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-        select: listSelect,
+      const rows = await ctx.db.query.poems.findMany({
+        columns: listColumns,
+        with: listWith,
+        where: await keysetWhere(ctx.db, cursor, "updatedAt"),
+        orderBy: keysetOrder("updatedAt"),
+        limit: limit + 1,
       });
+      const items = rows.map(mapTags);
 
       let nextCursor: typeof cursor;
-      if (poems.length > limit) {
-        const nextItem = poems.pop();
-        nextCursor = nextItem!.id;
+      if (items.length > limit) {
+        nextCursor = items.pop()!.id;
       }
 
-      return {
-        items: poems,
-        nextCursor,
-      };
+      return { items, nextCursor };
     }),
 
   getLatestListByDynasty: publicProcedure
@@ -105,42 +81,40 @@ export const poemDiscoverRouter = {
     .query(async ({ ctx, input }) => {
       const { dynastySlug, limit, cursor } = input;
 
-      const dynasty = await ctx.db.dynasty.findUnique({
-        where: { slug: dynastySlug },
-        select: {
-          name: true,
-          slug: true,
-          pinyin: true,
-          _count: { select: { poems: true } },
-        },
+      const dynastyRow = await ctx.db.query.dynasties.findFirst({
+        columns: { id: true, name: true, slug: true, pinyin: true },
+        where: eq(dynasties.slug, dynastySlug),
       });
 
-      if (!dynasty) {
+      if (!dynastyRow) {
         throw new Error("朝代不存在");
       }
 
-      const poems = await ctx.db.poem.findMany({
-        where: {
-          dynasty: {
-            slug: dynastySlug,
-          },
-        },
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: listSelect,
+      const poemsCount = await ctx.db.$count(
+        poems,
+        eq(poems.dynastyId, dynastyRow.id),
+      );
+
+      const base = eq(poems.dynastyId, dynastyRow.id);
+      const rows = await ctx.db.query.poems.findMany({
+        columns: listColumns,
+        with: listWith,
+        where: await keysetWhere(ctx.db, cursor, "createdAt", base),
+        orderBy: keysetOrder("createdAt"),
+        limit: limit + 1,
       });
+      const items = rows.map(mapTags);
 
       let nextCursor: typeof cursor;
-      if (poems.length > limit) {
-        const nextItem = poems.pop();
-        nextCursor = nextItem!.id;
+      if (items.length > limit) {
+        nextCursor = items.pop()!.id;
       }
 
+      const { id: _id, ...dynasty } = dynastyRow;
       return {
-        items: poems,
+        items,
         nextCursor,
-        dynasty,
+        dynasty: { ...dynasty, _count: { poems: poemsCount } },
       };
     }),
 
@@ -154,41 +128,39 @@ export const poemDiscoverRouter = {
     .query(async ({ ctx, input }) => {
       const { limit, cursor } = input;
 
-      const poems = await ctx.db.poem.findMany({
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        select: listSelect,
+      const rows = await ctx.db.query.poems.findMany({
+        columns: listColumns,
+        with: listWith,
+        where: cursor ? lte(poems.id, cursor) : undefined,
+        orderBy: [desc(poems.id)],
+        limit: limit + 1,
       });
+      const items = rows.map(mapTags);
 
       let nextCursor: typeof cursor;
-      if (poems.length > limit) {
-        const nextItem = poems.pop();
-        nextCursor = nextItem!.id;
+      if (items.length > limit) {
+        nextCursor = items.pop()!.id;
       }
 
-      return {
-        items: poems,
-        nextCursor,
-      };
+      return { items, nextCursor };
     }),
 
   getRandom: publicProcedure.query(async ({ ctx }) => {
-    // 获取诗词总数
-    const totalCount = await ctx.db.poem.count();
+    const [row] = await ctx.db.select({ total: count() }).from(poems);
+    const total = row?.total ?? 0;
 
-    if (totalCount === 0) {
+    if (total === 0) {
       return null;
     }
 
-    // 生成随机偏移量
-    const randomOffset = Math.floor(Math.random() * totalCount);
+    const randomOffset = Math.floor(Math.random() * total);
 
-    // 使用偏移量获取随机诗词
-    const randomPoem = await ctx.db.poem.findFirst({
-      skip: randomOffset,
-      select: listSelect,
+    const poem = await ctx.db.query.poems.findFirst({
+      columns: listColumns,
+      with: listWith,
+      offset: randomOffset,
     });
 
-    return randomPoem;
+    return poem ? mapTags(poem) : null;
   }),
 } satisfies TRPCRouterRecord;

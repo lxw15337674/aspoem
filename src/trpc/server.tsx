@@ -6,6 +6,7 @@ import { createCaller } from "@/server/api/root";
 
 import { createTRPCContext } from "@/server/api/trpc";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { createQueryClient } from "./query-client";
 
 import "server-only";
@@ -31,3 +32,17 @@ export const { trpc: api, HydrateClient } = createHydrationHelpers<AppRouter>(
   caller,
   getQueryClient,
 );
+
+/**
+ * 公开读页专用 caller：不读 headers()/session，页面因此可静态化 + ISR。
+ * 只调用 public 过程（不含 protected）。登录态由客户端渲染，服务端内容无需 session。
+ */
+const createPublicContext = cache(async () => ({
+  authApi: auth.api,
+  session: null,
+  db,
+  headers: new Headers(),
+  auth,
+}));
+
+export const publicApi = createCaller(createPublicContext);

@@ -1,25 +1,32 @@
-import { db } from "@/server/db";
+import { count, inArray } from "drizzle-orm";
+import { authors, dynasties, poems } from "@/server/db/schema";
+import { db } from "../db";
 
 export async function deleteDynastiesWithoutContent() {
   console.log("开始查找没有内容的朝代...");
 
-  // 查询所有朝代及其诗词和作者数量
-  const dynasties = await db.dynasty.findMany({
-    select: {
-      id: true,
-      name: true,
-      _count: {
-        select: {
-          poems: true,
-          authors: true,
-        },
-      },
-    },
+  // 查询所有朝代
+  const list = await db.query.dynasties.findMany({
+    columns: { id: true, name: true },
   });
 
+  // 各朝代诗词 / 作者数量（分组统计）
+  const [poemCounts, authorCounts] = await Promise.all([
+    db
+      .select({ dynastyId: poems.dynastyId, c: count() })
+      .from(poems)
+      .groupBy(poems.dynastyId),
+    db
+      .select({ dynastyId: authors.dynastyId, c: count() })
+      .from(authors)
+      .groupBy(authors.dynastyId),
+  ]);
+  const poemMap = new Map(poemCounts.map((r) => [r.dynastyId, r.c]));
+  const authorMap = new Map(authorCounts.map((r) => [r.dynastyId, r.c]));
+
   // 筛选出没有诗词和作者的朝代
-  const emptyDynasties = dynasties.filter(
-    (dynasty) => dynasty._count.poems === 0 && dynasty._count.authors === 0,
+  const emptyDynasties = list.filter(
+    (d) => (poemMap.get(d.id) ?? 0) === 0 && (authorMap.get(d.id) ?? 0) === 0,
   );
 
   console.log(`找到 ${emptyDynasties.length} 个没有内容的朝代`);
@@ -36,13 +43,12 @@ export async function deleteDynastiesWithoutContent() {
   });
 
   // 删除这些朝代
-  const result = await db.dynasty.deleteMany({
-    where: {
-      id: {
-        in: emptyDynasties.map((d) => d.id),
-      },
-    },
-  });
+  await db.delete(dynasties).where(
+    inArray(
+      dynasties.id,
+      emptyDynasties.map((d) => d.id),
+    ),
+  );
 
-  console.log(`\n成功删除 ${result.count} 个朝代`);
+  console.log(`\n成功删除 ${emptyDynasties.length} 个朝代`);
 }

@@ -46,3 +46,11 @@ yarn-error.log*
 
 # idea files
 .idea
+/dist/
+.vinext/
+.wrangler/
+
+# 数据 seed 产物
+seed.db
+seed-data.sql
+../aspoem-backup

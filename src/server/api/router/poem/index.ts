@@ -1,6 +1,9 @@
+import { eq, like, sql } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
 import z from "zod";
+import { poems } from "@/server/db/schema";
 import { publicProcedure } from "../../trpc";
+import { mapTags } from "./_helpers";
 
 export * from "./discover";
 
@@ -23,9 +26,10 @@ export const poemRouter = {
     )
     .query(async ({ ctx, input }) => {
       const { id, slug } = input;
-      const poem = await ctx.db.poem.findUnique({
-        where: id ? { id } : { slug: slug! },
-        select: {
+
+      const row = await ctx.db.query.poems.findFirst({
+        where: id ? eq(poems.id, id) : eq(poems.slug, slug!),
+        columns: {
           id: true,
           slug: true,
           title: true,
@@ -36,35 +40,31 @@ export const poemRouter = {
           visits: true,
           createdAt: true,
           annotation: true,
-          dynasty: true,
-          author: true,
           appreciation: true,
           translation: true,
           isOrderliness: true,
           updatedAt: true,
-          tags: {
-            select: {
-              name: true,
-              slug: true,
-            },
+        },
+        with: {
+          dynasty: true,
+          author: true,
+          poemsToTags: {
+            columns: {},
+            with: { tag: { columns: { name: true, slug: true } } },
           },
         },
       });
 
-      if (!poem) {
+      if (!row) {
         throw new Error("Poem not found");
       }
 
-      ctx.db.poem
-        .update({
-          where: { id: poem.id },
-          data: {
-            visits: {
-              increment: 1,
-            },
-          },
-        })
-        .then(() => {});
+      const poem = mapTags(row);
+
+      await ctx.db
+        .update(poems)
+        .set({ visits: sql`${poems.visits} + 1` })
+        .where(eq(poems.id, poem.id));
 
       return poem;
     }),
@@ -78,30 +78,18 @@ export const poemRouter = {
     .query(async ({ ctx, input }) => {
       const { keyword } = input;
 
-      const poems = await ctx.db.poem.findMany({
-        where: {
-          searchText: { contains: keyword },
-        },
-        take: 20,
-        select: {
-          id: true,
-          slug: true,
-          title: true,
+      const poemsResult = await ctx.db.query.poems.findMany({
+        where: like(poems.searchText, `%${keyword}%`),
+        limit: 20,
+        columns: { id: true, slug: true, title: true },
+        with: {
           author: {
-            select: {
-              name: true,
-              slug: true,
-              dynasty: {
-                select: {
-                  name: true,
-                  slug: true,
-                },
-              },
-            },
+            columns: { name: true, slug: true },
+            with: { dynasty: { columns: { name: true, slug: true } } },
           },
         },
       });
 
-      return poems;
+      return poemsResult;
     }),
 } satisfies TRPCRouterRecord;

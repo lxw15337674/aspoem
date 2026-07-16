@@ -1,5 +1,12 @@
-import type { Poem } from "@prisma/client";
-import { db } from "@/server/db";
+import { eq } from "drizzle-orm";
+import type { DB } from "@/server/db";
+import {
+  authors,
+  dynasties,
+  poems,
+  poemsToTags,
+  tags,
+} from "@/server/db/schema";
 import { isOrderliness } from "./utils";
 
 export interface PoemData {
@@ -19,79 +26,80 @@ export interface PoemData {
   // 内容字段
   paragraphs: string[];
   paragraphsPinyin: string[];
-  annotation?: Poem["annotation"];
+  annotation?: unknown;
   translation?: string;
   appreciation?: string;
 }
 
-// 同步诗词数据到数据库
-export async function syncPoemToDatabase(poemData: PoemData) {
+const tagSlug = (name: string) => name.toLowerCase().replace(/\s+/g, "-");
+
+// 同步诗词数据到数据库（db 由调用方注入：webhook 传 Workers D1，脚本传 node sqlite）
+export async function syncPoemToDatabase(db: DB, poemData: PoemData) {
   // 1. 创建或查找朝代
-  let dynasty = await db.dynasty.findUnique({
-    where: { slug: poemData.dynastySlug },
+  let dynasty = await db.query.dynasties.findFirst({
+    where: eq(dynasties.slug, poemData.dynastySlug),
   });
 
   if (!dynasty) {
-    dynasty = await db.dynasty.create({
-      data: {
+    [dynasty] = await db
+      .insert(dynasties)
+      .values({
         name: poemData.dynasty,
         pinyin: poemData.dynastyPinyin,
         slug: poemData.dynastySlug,
-      },
-    });
+      })
+      .returning();
   }
 
   // 2. 创建或查找作者
-  let author = await db.author.findUnique({
-    where: { slug: poemData.authorSlug },
+  let author = await db.query.authors.findFirst({
+    where: eq(authors.slug, poemData.authorSlug),
   });
 
   if (!author) {
-    author = await db.author.create({
-      data: {
+    [author] = await db
+      .insert(authors)
+      .values({
         name: poemData.author,
         pinyin: poemData.authorPinyin,
         slug: poemData.authorSlug,
-        dynastyId: dynasty.id,
-      },
-    });
+        dynastyId: dynasty!.id,
+      })
+      .returning();
   } else {
     // 更新作者
-    await db.author.update({
-      where: { id: author.id },
-      data: {
+    await db
+      .update(authors)
+      .set({
         name: poemData.author,
         pinyin: poemData.authorPinyin,
         slug: poemData.authorSlug,
-        dynastyId: dynasty.id,
-      },
-    });
+        dynastyId: dynasty!.id,
+      })
+      .where(eq(authors.id, author.id));
   }
 
-  // 3. 处理标签
-  const tagConnections = [];
+  // 3. 处理标签，收集 id
+  const tagIds: string[] = [];
   for (const tagName of poemData.tags) {
     if (!tagName) continue;
+    const slug = tagSlug(tagName);
 
-    let tag = await db.tag.findUnique({
-      where: { slug: tagName.toLowerCase().replace(/\s+/g, "-") },
+    let tag = await db.query.tags.findFirst({
+      where: eq(tags.slug, slug),
     });
 
     if (!tag) {
-      tag = await db.tag.create({
-        data: {
-          name: tagName,
-          slug: tagName.toLowerCase().replace(/\s+/g, "-"),
-        },
-      });
+      [tag] = await db.insert(tags).values({ name: tagName, slug }).returning();
     }
 
-    tagConnections.push({ id: tag.id });
+    tagIds.push(tag!.id);
   }
 
   // 4. 检查诗词是否已存在
-  const existingPoem = await db.poem.findUnique({
-    where: { slug: poemData.id },
+  const existingPoem = await db.query.poems.findFirst({
+    columns: { id: true },
+    where: eq(poems.slug, poemData.id),
   });
 
   const poemDBData = {
@@ -101,38 +109,38 @@ export async function syncPoemToDatabase(poemData: PoemData) {
     titleSlug: poemData.titleSlug,
     paragraphs: poemData.paragraphs,
     paragraphsPinyin: poemData.paragraphsPinyin,
-    annotation: poemData.annotation || undefined,
+    annotation: poemData.annotation ?? null,
     translation: poemData.translation || "",
     appreciation: poemData.appreciation || "",
-    authorId: author.id,
-    dynastyId: dynasty.id,
+    authorId: author!.id,
+    dynastyId: dynasty!.id,
     isOrderliness: isOrderliness(poemData.paragraphs),
+    updatedAt: new Date(),
   };
 
-  const now = new Date();
+  let poemId: string;
 
   if (existingPoem) {
     // 更新现有诗词
-    await db.poem.update({
-      where: { id: existingPoem.id },
-      data: {
-        ...poemDBData,
-        tags: {
-          set: tagConnections,
-        },
-        updatedAt: now,
-      },
-    });
+    await db.update(poems).set(poemDBData).where(eq(poems.id, existingPoem.id));
+    poemId = existingPoem.id;
+
+    // set 语义：重置多对多关系
+    await db.delete(poemsToTags).where(eq(poemsToTags.poemId, poemId));
   } else {
     // 创建新诗词
-    await db.poem.create({
-      data: {
-        ...poemDBData,
-        tags: {
-          connect: tagConnections,
-        },
-        updatedAt: now,
-      },
-    });
+    const [created] = await db
+      .insert(poems)
+      .values(poemDBData)
+      .returning({ id: poems.id });
+    poemId = created!.id;
+  }
+
+  // 建立标签关联
+  if (tagIds.length > 0) {
+    await db
+      .insert(poemsToTags)
+      .values(tagIds.map((tagId) => ({ poemId, tagId })))
+      .onConflictDoNothing();
   }
 }
