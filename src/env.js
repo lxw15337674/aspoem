@@ -13,6 +13,8 @@ export const env = createEnv({
         : z.string().optional(),
     GITHUB_WEBHOOK_SECRET: z.string(),
     GITHUB_TOKEN: z.string(),
+    // 线上域名，用于 better-auth baseURL/trustedOrigins；不设则从请求推断
+    BETTER_AUTH_URL: z.string().url().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -37,6 +39,7 @@ export const env = createEnv({
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:

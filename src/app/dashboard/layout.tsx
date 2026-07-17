@@ -30,7 +30,7 @@ export default function DashboardLayout({
   const { data: session, isPending } = authClient.useSession();
 
   if (!isPending && !isAdmin(session?.user as UserWithRole)) {
-    redirect("/sign-in");
+    redirect("/login");
   }
 
   return (

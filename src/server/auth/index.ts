@@ -20,6 +20,9 @@ export const auth = betterAuth({
     schema: { user, session, account, verification },
   }),
   secret: env.BETTER_AUTH_SECRET,
+  // 线上域名（不设则从请求推断）；配了更稳（cookie/CSRF/trustedOrigins）
+  baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins: env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : undefined,
   emailAndPassword: { enabled: true },
   plugins: [admin()],
   hooks: {
