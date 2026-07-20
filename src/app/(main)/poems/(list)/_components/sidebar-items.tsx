@@ -1,4 +1,4 @@
-import { ArrowDownAzIcon, CirclePlusIcon, DicesIcon } from "lucide-react";
+import { CirclePlusIcon, DicesIcon } from "lucide-react";
 
 export interface SidebarItem {
   title: string;
@@ -16,12 +16,6 @@ export const discover: SidebarItem[] = [
     icon: CirclePlusIcon,
     description: "查看最近更新的诗文",
     url: "/poems",
-  },
-  {
-    title: "最受欢迎的",
-    icon: ArrowDownAzIcon,
-    description: "访问量最高的诗文排行",
-    url: "/poems/hot",
   },
   {
     title: "随机诗文",

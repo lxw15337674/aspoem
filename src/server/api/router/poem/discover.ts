@@ -1,5 +1,5 @@
 import type { TRPCRouterRecord } from "@trpc/server";
-import { count, desc, eq, lte } from "drizzle-orm";
+import { desc, eq, lte, sql } from "drizzle-orm";
 import z from "zod";
 import { dynasties, poems } from "@/server/db/schema";
 import { publicProcedure } from "../../trpc";
@@ -146,19 +146,22 @@ export const poemDiscoverRouter = {
     }),
 
   getRandom: publicProcedure.query(async ({ ctx }) => {
-    const [row] = await ctx.db.select({ total: count() }).from(poems);
-    const total = row?.total ?? 0;
+    const [row] = await ctx.db
+      .select({ maxRowId: sql<number>`max(rowid)` })
+      .from(poems);
+    const maxRowId = row?.maxRowId ?? 0;
 
-    if (total === 0) {
+    if (maxRowId === 0) {
       return null;
     }
 
-    const randomOffset = Math.floor(Math.random() * total);
+    const randomRowId = Math.floor(Math.random() * maxRowId) + 1;
 
     const poem = await ctx.db.query.poems.findFirst({
       columns: listColumns,
       with: listWith,
-      offset: randomOffset,
+      where: sql`rowid >= ${randomRowId}`,
+      orderBy: sql`rowid`,
     });
 
     return poem ? mapTags(poem) : null;
