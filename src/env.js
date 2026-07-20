@@ -11,8 +11,6 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string()
         : z.string().optional(),
-    GITHUB_WEBHOOK_SECRET: z.string(),
-    GITHUB_TOKEN: z.string(),
     // 线上域名，用于 better-auth baseURL/trustedOrigins；不设则从请求推断
     BETTER_AUTH_URL: z.string().url().optional(),
     NODE_ENV: z
@@ -36,8 +34,6 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-    GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,

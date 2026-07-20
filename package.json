@@ -26,7 +26,6 @@
     "check:write": "biome check --write .",
     "gen:markdown": "tsx scripts/chinese-poetry-to-markdown/index.ts",
     "gen:db": "NODE_OPTIONS=--experimental-sqlite tsx scripts/poems-to-db/index.ts",
-    "webhook:dev": "smee -u https://smee.io/r0hpzCtvkMwkjUH -t http://localhost:3001/api/webhook",
     "ui:upgrade": "for file in src/components/ui/*.tsx; do npx shadcn@latest add -y -o $(basename \"$file\" .tsx); done",
     "prepare": "husky",
     "dev:vinext": "vinext dev --port 3001",
@@ -37,7 +36,6 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@next/third-parties": "^16.0.3",
-    "@octokit/rest": "^22.0.1",
     "@paralleldrive/cuid2": "^3.3.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -87,7 +85,6 @@
     "react-server-dom-webpack": "^19.2.7",
     "server-only": "^0.0.1",
     "slugify": "^1.6.6",
-    "smee-client": "^4.4.1",
     "sonner": "^2.0.7",
     "superjson": "^2.2.1",
     "tailwind-merge": "^3.3.1",
