@@ -1,9 +1,8 @@
-# [AsPoem - 中文诗词阅读网站](https://aspoem.com)
+# [AsPoem - 中文诗词阅读网站](https://aspoem.404174262.workers.dev)
 
-- next.beta 体验地址： <https://aspoem.com>
-- v1 体验地址：<https://v1.aspoem.com>
+- Cloudflare Workers 体验地址：<https://aspoem.404174262.workers.dev>
 
-----
+---
 
 - 免费打印诗词
 - 针对诗词的排版设计
