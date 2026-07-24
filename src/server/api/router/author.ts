@@ -172,4 +172,20 @@ export const authorRouter = {
 
       return { ...row, _count: { poems: row.poems.length } };
     }),
+
+  findSlugById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) =>
+      ctx.db.query.authors.findFirst({
+        columns: { slug: true },
+        where: eq(authors.id, input.id),
+      }),
+    ),
+
+  sitemap: publicProcedure.query(async ({ ctx }) =>
+    ctx.db.query.authors.findMany({
+      columns: { slug: true, updatedAt: true },
+      orderBy: [asc(authors.name), asc(authors.id)],
+    }),
+  ),
 } satisfies TRPCRouterRecord;

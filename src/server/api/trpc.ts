@@ -7,8 +7,10 @@
  * The pieces you will need to use are documented accordingly near the end
  */
 import { initTRPC, TRPCError } from "@trpc/server";
+import type { UserWithRole } from "better-auth/plugins";
 import superjson from "superjson";
 import { ZodError } from "zod";
+import { isAdmin } from "@/lib/is-admin";
 import type { Auth } from "../auth";
 
 import { db } from "../db";
@@ -141,3 +143,11 @@ export const protectedProcedure = t.procedure
       },
     });
   });
+
+export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!isAdmin(ctx.session.user as UserWithRole)) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next();
+});

@@ -13,6 +13,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { Kbd } from "@/components/ui/kbd";
+import { useLocale } from "@/i18n/provider";
 import { api } from "@/trpc/react";
 import {
   InputGroup,
@@ -24,6 +25,7 @@ export function CommandSearch() {
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const router = useRouter();
+  const { dictionary } = useLocale();
 
   const { data, refetch, isLoading } = api.poem.search.useQuery(
     { keyword: keyword || "中" },
@@ -70,7 +72,7 @@ export function CommandSearch() {
         >
           <InputGroupInput
             value={keyword}
-            placeholder="点击开始搜索..."
+            placeholder={`${dictionary.search.placeholder}...`}
             readOnly
           />
           <InputGroupAddon>
@@ -85,17 +87,19 @@ export function CommandSearch() {
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
-          placeholder="搜索诗词、作者..."
+          placeholder={dictionary.search.placeholder}
           value={keyword}
           onValueChange={setKeyword}
         />
         <CommandList>
           <CommandEmpty>
-            {isLoading ? "搜索中..." : "没有找到相关结果"}
+            {isLoading
+              ? `${dictionary.search.placeholder}...`
+              : dictionary.search.empty}
           </CommandEmpty>
 
           {data && data.length > 0 && (
-            <CommandGroup heading={`找到 ${data.length} 个结果`}>
+            <CommandGroup heading={`${data.length}`}>
               {data.map((poem) => (
                 <CommandItem
                   key={poem.id}

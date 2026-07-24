@@ -22,6 +22,12 @@
 pnpm gen:markdown
 ```
 
+## 定时同步词牌名
+
+`.github/workflows/sync-ci-pai.yml` 每周一直接同步 `chinese-poetry` 的宋词和《花间集》到线上 D1。同步器只新增缺失的词牌和诗文关联，不会定时删除或重建已有数据；遇到标签冲突会失败并停止写入。
+
+在 GitHub 仓库的 Actions secrets 中设置 `CLOUDFLARE_API_TOKEN` 后，工作流即可运行。Token 需要对 `aspoem` D1 数据库具备写入权限。也可以从 Actions 页面手动运行工作流，并选择上游分支或 tag。
+
 ### markdown 文件示例
 
 ```markdown

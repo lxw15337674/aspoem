@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
+import { LocaleProvider } from "@/i18n/provider";
 import { TRPCReactProvider } from "@/trpc/react";
 
 export const Providers = ({ children }: { children: React.ReactNode }) => {
@@ -21,11 +22,13 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
       enableSystem
       disableTransitionOnChange
     >
-      <TRPCReactProvider>
-        {children}
+      <LocaleProvider>
+        <TRPCReactProvider>
+          {children}
 
-        <Toaster richColors position="top-right" />
-      </TRPCReactProvider>
+          <Toaster richColors position="top-right" />
+        </TRPCReactProvider>
+      </LocaleProvider>
     </ThemeProvider>
   );
 };

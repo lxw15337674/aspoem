@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash, X } from "lucide-react";
+import { PlusIcon, Trash, X } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -53,6 +54,13 @@ export default function Page() {
     dynastyIds: filters.dynastyIds,
   });
   const { data: dynastyData } = api.protectedDynasty.getList.useQuery();
+  const deletePoems = api.protectedContent.deletePoems.useMutation({
+    onSuccess: async () => {
+      table.resetRowSelection();
+      setDeleteDialogOpen(false);
+      await refetch();
+    },
+  });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <filters>
   useEffect(() => {
@@ -81,10 +89,22 @@ export default function Page() {
   const selectedRows = table.getSelectedRowModel().rows;
   const openActionBar = selectedRows.length > 0;
 
-  const handleDeleteConfirm = async () => {};
+  const handleDeleteConfirm = async () => {
+    await deletePoems.mutateAsync({
+      ids: selectedRows.map((row) => row.original.id),
+    });
+  };
 
   return (
     <section className="data-table-container">
+      <div className="mb-4 flex justify-end">
+        <Button asChild>
+          <Link href="/dashboard/poems/new">
+            <PlusIcon />
+            新建诗词
+          </Link>
+        </Button>
+      </div>
       <DataTable
         table={table}
         classNames={{ table: "h-[calc(100vh-16rem)] overflow-y-auto" }}
@@ -146,8 +166,11 @@ export default function Page() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm}>
-              Delete
+            <AlertDialogAction
+              disabled={deletePoems.isPending}
+              onClick={handleDeleteConfirm}
+            >
+              删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

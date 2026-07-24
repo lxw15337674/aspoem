@@ -1,11 +1,11 @@
-import { asc } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
+import { asc } from "drizzle-orm";
 import { dynasties } from "@/server/db/schema";
-import { protectedProcedure } from "../../trpc";
+import { adminProcedure } from "../../trpc";
 
 export const protectedDynastyRouter = {
   // Get all dynasties list
-  getList: protectedProcedure.query(async ({ ctx }) => {
+  getList: adminProcedure.query(async ({ ctx }) => {
     const items = await ctx.db.query.dynasties.findMany({
       orderBy: [asc(dynasties.createdAt)],
       limit: 100,

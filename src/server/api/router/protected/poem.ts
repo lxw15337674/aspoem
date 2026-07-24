@@ -1,12 +1,12 @@
-import { and, count, desc, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import type { TRPCRouterRecord } from "@trpc/server";
+import { and, count, desc, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { authors, poems } from "@/server/db/schema";
-import { protectedProcedure } from "../../trpc";
+import { adminProcedure } from "../../trpc";
 
 export const protectedPoemRouter = {
   // Get paginated poems list
-  list: protectedProcedure
+  list: adminProcedure
     .input(
       z.object({
         page: z.number().min(1).default(1),

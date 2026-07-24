@@ -1,0 +1,75 @@
+name: Sync Ci Pai Ming
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: chinese-poetry branch or tag to sync
+        required: false
+        default: master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-ci-pai-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      CI_POETRY_DIR: ${{ github.workspace }}/.cache/chinese-poetry
+      IMPORT_OUTPUT_DIR: ${{ github.workspace }}/tmp/cipai-sync
+      SOURCE_REF: ${{ inputs.source_ref || 'master' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fetch chinese-poetry
+        run: |
+          mkdir -p "$(dirname \"$CI_POETRY_DIR\")"
+          git clone --depth 1 --branch "$SOURCE_REF" https://github.com/chinese-poetry/chinese-poetry.git "$CI_POETRY_DIR"
+
+      - name: Record source revision
+        run: echo "SOURCE_REVISION=$(git -C \"$CI_POETRY_DIR\" rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Apply pending D1 migrations
+        run: pnpm exec wrangler d1 migrations apply aspoem --remote
+
+      - name: Build poem lookups
+        run: pnpm create:cipai-lookups
+
+      - name: Fetch remote sync state
+        run: |
+          mkdir "$IMPORT_OUTPUT_DIR/remote-poems"
+          while IFS= read -r file
+          do
+            query=$(<"$IMPORT_OUTPUT_DIR/poem-lookups/$file")
+            pnpm exec wrangler d1 execute aspoem --remote --command "$query" --json > "$IMPORT_OUTPUT_DIR/remote-poems/${file%.sql}.json"
+          done < "$IMPORT_OUTPUT_DIR/lookup-files.txt"
+          pnpm exec wrangler d1 execute aspoem --remote --command "SELECT id, name, slug, type FROM tags;" --json > "$IMPORT_OUTPUT_DIR/remote-tags.json"
+          pnpm exec wrangler d1 execute aspoem --remote --command "SELECT pt.poemId, pt.tagId FROM poems_to_tags pt JOIN tags t ON t.id = pt.tagId WHERE t.type = '词牌名';" --json > "$IMPORT_OUTPUT_DIR/remote-links.json"
+
+      - name: Plan incremental sync
+        run: pnpm plan:cipai-remote-sync
+
+      - name: Apply incremental sync to D1
+        run: |
+          while IFS= read -r file
+          do
+            pnpm exec wrangler d1 execute aspoem --remote --file "$IMPORT_OUTPUT_DIR/$file"
+          done < "$IMPORT_OUTPUT_DIR/apply-files.txt"

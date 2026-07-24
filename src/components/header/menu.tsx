@@ -8,15 +8,19 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
+import { useLocale } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
-  // { href: "/", label: "推荐" },
-  { href: "/poems", label: "诗文" },
-  { href: "/authors", label: "诗人", disabled: true },
-];
-
 export function Menu({ className }: { className?: string }) {
+  const { dictionary } = useLocale();
+  const menuItems = [
+    { href: "/poems", label: dictionary.menu.poem },
+    { href: "/authors", label: dictionary.menu.author },
+    { href: "/ci-pai-ming", label: dictionary.menu.ci_pai_ming },
+    { href: "/tags", label: dictionary.menu.tag },
+    { href: "/quotes", label: dictionary.menu.fragment },
+  ];
+
   return (
     <NavigationMenu className={cn("w-full", className)}>
       <NavigationMenuList className="flex-wrap">

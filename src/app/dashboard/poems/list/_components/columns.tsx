@@ -1,7 +1,10 @@
-import type { Author, Poem } from "@/server/db/schema";
 import type { ColumnDef } from "@tanstack/react-table";
+import { PencilIcon } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { Author, Poem } from "@/server/db/schema";
 
 export const columns: ColumnDef<Poem>[] = [
   {
@@ -88,5 +91,20 @@ export const columns: ColumnDef<Poem>[] = [
 
       return <div className="max-w-72 line-clamp-1">{truncated}</div>;
     },
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => (
+      <Button
+        asChild
+        aria-label={`编辑 ${row.original.title}`}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <Link href={`/dashboard/poems/${row.original.id}`}>
+          <PencilIcon />
+        </Link>
+      </Button>
+    ),
   },
 ];

@@ -7,10 +7,20 @@ import { Providers } from "@/components/providers";
 import { env } from "@/env";
 
 export const metadata: Metadata = {
-  title: "ASPOEM - 中文诗词阅读网站",
+  metadataBase: new URL(env.BETTER_AUTH_URL ?? "https://aspoem.com"),
+  title: {
+    default: "ASPOEM - 中文诗词阅读网站",
+    template: "%s | ASPOEM",
+  },
   description:
-    "ASPOEM 是一个专注于中文古诗词的在线阅读平台，提供免费打印诗词、精美的诗词排版设计、拼音标注、详细注释、准确译文和深度赏析。支持在线纠错，让每个人都能轻松欣赏和阅读中国古典诗词。",
+    "ASPOEM 是一个专注于中文古诗词的在线阅读平台，提供免费打印、拼音标注、详细注释、译文和赏析，让每个人都能轻松阅读中国古典诗词。",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
+  openGraph: {
+    type: "website",
+    locale: "zh_CN",
+    siteName: "ASPOEM",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 const geistSans = Geist({
