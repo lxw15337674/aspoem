@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { publicApi as api } from "@/trpc/server";
+import { AuthorPoemLoadMore } from "./author-poem-load-more";
 
 // ISR：读页缓存，降 D1 读压
 export const revalidate = 600;
@@ -18,6 +19,11 @@ export default async function Page({ params }: PageProps) {
   if (!author) {
     notFound();
   }
+
+  const { items: poems, nextCursor } = await api.author.listPoems({
+    authorId: author.id,
+    limit: 48,
+  });
 
   const lifespan =
     author.birthDate && author.deathDate
@@ -54,21 +60,22 @@ export default async function Page({ params }: PageProps) {
         {author.introduce || "暂无简介"}
       </p>
 
-      {/* 作品列表 - 可以后续添加 */}
       <h2 className="font-heading [&+]*:[code]:text-xl mt-10 scroll-m-28 text-xl font-medium tracking-tight first:mt-0 lg:mt-16 [&+.steps]:!mt-0 [&+.steps>h3]:!mt-4 [&+h3]:!mt-6 [&+p]:!mt-4">
         作品列表
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6">
-        {author.poems.map((poem) => (
+        {poems.map((poem) => (
           <Link
             key={poem.slug}
             href={`/poems/detail/${poem.slug}`}
             className="line-clamp-1 hover:underline"
+            prefetch={false}
           >
             {poem.title}
           </Link>
         ))}
       </div>
+      <AuthorPoemLoadMore authorId={author.id} nextCursor={nextCursor} />
     </div>
   );
 }

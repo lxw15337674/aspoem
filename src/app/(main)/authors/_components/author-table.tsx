@@ -1,14 +1,7 @@
 "use client";
 import Link from "next/link";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LoadMoreControl } from "@/components/public/load-more-control";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
@@ -18,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { api } from "@/trpc/react";
 
 interface Author {
   id: string;
@@ -35,55 +29,43 @@ interface Author {
 
 interface AuthorTableProps {
   authors: Author[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalPages: number;
-    total: number;
-  };
+  dynastySlug?: string;
+  nextCursor?: string;
 }
 
-export function AuthorTable({ authors, pagination }: AuthorTableProps) {
-  const { page, totalPages } = pagination;
+export function AuthorTable({
+  authors,
+  dynastySlug,
+  nextCursor,
+}: AuthorTableProps) {
+  const [cursor, setCursor] = useState<string>();
+  const [loadedAuthors, setLoadedAuthors] = useState<Author[]>([]);
+  const [nextPageCursor, setNextPageCursor] = useState(nextCursor);
+  const processedAt = useRef(0);
+  const query = api.author.getList.useQuery(
+    { cursor, dynastySlug, limit: 24 },
+    { enabled: cursor !== undefined },
+  );
 
-  // 生成分页数组
-  const getPageNumbers = () => {
-    const pages: (number | "ellipsis")[] = [];
-    const maxVisible = 7;
-
-    if (totalPages <= maxVisible) {
-      // 如果总页数小于等于最大显示数，显示所有页码
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      // 始终显示第一页
-      pages.push(1);
-
-      if (page > 4) {
-        pages.push("ellipsis");
-      }
-
-      // 显示当前页周围的页码
-      const start = Math.max(2, page - 1);
-      const end = Math.min(totalPages - 1, page + 1);
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      if (page < totalPages - 3) {
-        pages.push("ellipsis");
-      }
-
-      // 始终显示最后一页
-      if (totalPages > 1) {
-        pages.push(totalPages);
-      }
+  useEffect(() => {
+    if (
+      cursor === undefined ||
+      !query.data ||
+      query.dataUpdatedAt === processedAt.current
+    ) {
+      return;
     }
 
-    return pages;
-  };
+    processedAt.current = query.dataUpdatedAt;
+    setLoadedAuthors((items) => [...items, ...query.data.items]);
+    setNextPageCursor(query.data.nextCursor);
+    setCursor(undefined);
+  }, [cursor, query.data, query.dataUpdatedAt]);
+
+  const loadMore = useCallback(() => {
+    if (nextPageCursor) setCursor(nextPageCursor);
+  }, [nextPageCursor]);
+  const allAuthors = [...authors, ...loadedAuthors];
 
   return (
     <div className="space-y-12">
@@ -99,15 +81,21 @@ export function AuthorTable({ authors, pagination }: AuthorTableProps) {
           </TableHeader>
 
           <TableBody>
-            {authors.map((author) => (
+            {allAuthors.map((author) => (
               <TableRow key={author.id}>
                 <TableCell>
-                  <Link href={`/authors/detail/${author.slug}`}>
+                  <Link
+                    href={`/authors/detail/${author.slug}`}
+                    prefetch={false}
+                  >
                     {author.name}
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <Link href={`/authors/dynasty/${author.dynasty.slug}`}>
+                  <Link
+                    href={`/authors/dynasty/${author.dynasty.slug}`}
+                    prefetch={false}
+                  >
                     {author.dynasty.name}
                   </Link>
                 </TableCell>
@@ -124,44 +112,11 @@ export function AuthorTable({ authors, pagination }: AuthorTableProps) {
           </TableBody>
         </Table>
       </ScrollArea>
-
-      {/* 分页组件 */}
-      {totalPages > 1 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                href={`?page=${page - 1}`}
-                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-              />
-            </PaginationItem>
-
-            {getPageNumbers().map((pageNum, index) => (
-              <PaginationItem key={index}>
-                {pageNum === "ellipsis" ? (
-                  <PaginationEllipsis />
-                ) : (
-                  <PaginationLink
-                    href={`?page=${pageNum}`}
-                    isActive={pageNum === page}
-                  >
-                    {pageNum}
-                  </PaginationLink>
-                )}
-              </PaginationItem>
-            ))}
-
-            <PaginationItem>
-              <PaginationNext
-                href={`?page=${page + 1}`}
-                className={
-                  page >= totalPages ? "pointer-events-none opacity-50" : ""
-                }
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+      <LoadMoreControl
+        hasNext={!!nextPageCursor}
+        isFetching={query.isFetching}
+        onLoadMore={loadMore}
+      />
     </div>
   );
 }

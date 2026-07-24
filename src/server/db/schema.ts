@@ -31,34 +31,38 @@ export const dynasties = sqliteTable("dynasties", {
     .$onUpdate(() => new Date()),
 });
 
-export const authors = sqliteTable("authors", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  name: text("name").notNull(),
-  pinyin: text("pinyin").notNull(),
-  slug: text("slug").notNull().unique(),
-  birthDate: integer("birthDate", { mode: "timestamp" }),
-  deathDate: integer("deathDate", { mode: "timestamp" }),
-  introduce: text("introduce"),
-  // sqlite 无标量数组，存 JSON
-  epithets: text("epithets", { mode: "json" })
-    .$type<string[]>()
-    .notNull()
-    .default([]),
-  style: text("style"),
-  visits: integer("visits").notNull().default(0),
-  createdAt: integer("createdAt", { mode: "timestamp" })
-    .notNull()
-    .default(now()),
-  updatedAt: integer("updatedAt", { mode: "timestamp" })
-    .notNull()
-    .default(now())
-    .$onUpdate(() => new Date()),
-  dynastyId: text("dynastyId")
-    .notNull()
-    .references(() => dynasties.id),
-});
+export const authors = sqliteTable(
+  "authors",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    name: text("name").notNull(),
+    pinyin: text("pinyin").notNull(),
+    slug: text("slug").notNull().unique(),
+    birthDate: integer("birthDate", { mode: "timestamp" }),
+    deathDate: integer("deathDate", { mode: "timestamp" }),
+    introduce: text("introduce"),
+    // sqlite 无标量数组，存 JSON
+    epithets: text("epithets", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    style: text("style"),
+    visits: integer("visits").notNull().default(0),
+    createdAt: integer("createdAt", { mode: "timestamp" })
+      .notNull()
+      .default(now()),
+    updatedAt: integer("updatedAt", { mode: "timestamp" })
+      .notNull()
+      .default(now())
+      .$onUpdate(() => new Date()),
+    dynastyId: text("dynastyId")
+      .notNull()
+      .references(() => dynasties.id),
+  },
+  (table) => [index("authors_name_id_idx").on(table.name, table.id)],
+);
 
 export const tags = sqliteTable("tags", {
   id: text("id")
@@ -99,6 +103,7 @@ export const cards = sqliteTable(
   },
   (table) => [
     index("cards_poemId_createdAt_idx").on(table.poemId, table.createdAt),
+    index("cards_createdAt_id_idx").on(table.createdAt, table.id),
   ],
 );
 
@@ -109,43 +114,60 @@ export const contentSyncState = sqliteTable("content_sync_state", {
   details: text("details").notNull(),
 });
 
-export const poems = sqliteTable("poems", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  slug: text("slug").notNull().unique(),
-  title: text("title").notNull(),
-  titleSlug: text("titleSlug").notNull(),
-  titlePinyin: text("titlePinyin").notNull(),
-  // sqlite 无标量数组，存 JSON
-  paragraphs: text("paragraphs", { mode: "json" })
-    .$type<string[]>()
-    .notNull()
-    .default([]),
-  paragraphsPinyin: text("paragraphsPinyin", { mode: "json" })
-    .$type<string[]>()
-    .notNull()
-    .default([]),
-  // 注解，任意 JSON
-  annotation: text("annotation", { mode: "json" }),
-  translation: text("translation").notNull().default(""),
-  appreciation: text("appreciation").notNull().default(""),
-  isOrderliness: integer("isOrderliness", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  searchText: text("searchText"),
-  visits: integer("visits").notNull().default(0),
-  createdAt: integer("createdAt", { mode: "timestamp" })
-    .notNull()
-    .default(now()),
-  updatedAt: integer("updatedAt", { mode: "timestamp" })
-    .notNull()
-    .default(now()),
-  authorId: text("authorId")
-    .notNull()
-    .references(() => authors.id),
-  dynastyId: text("dynastyId").references(() => dynasties.id),
-});
+export const poems = sqliteTable(
+  "poems",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    titleSlug: text("titleSlug").notNull(),
+    titlePinyin: text("titlePinyin").notNull(),
+    // sqlite 无标量数组，存 JSON
+    paragraphs: text("paragraphs", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    paragraphsPinyin: text("paragraphsPinyin", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    // 注解，任意 JSON
+    annotation: text("annotation", { mode: "json" }),
+    translation: text("translation").notNull().default(""),
+    appreciation: text("appreciation").notNull().default(""),
+    isOrderliness: integer("isOrderliness", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    searchText: text("searchText"),
+    visits: integer("visits").notNull().default(0),
+    createdAt: integer("createdAt", { mode: "timestamp" })
+      .notNull()
+      .default(now()),
+    updatedAt: integer("updatedAt", { mode: "timestamp" })
+      .notNull()
+      .default(now()),
+    authorId: text("authorId")
+      .notNull()
+      .references(() => authors.id),
+    dynastyId: text("dynastyId").references(() => dynasties.id),
+  },
+  (table) => [
+    index("poems_authorId_createdAt_id_idx").on(
+      table.authorId,
+      table.createdAt,
+      table.id,
+    ),
+    index("poems_updatedAt_id_idx").on(table.updatedAt, table.id),
+    index("poems_visits_id_idx").on(table.visits, table.id),
+    index("poems_dynastyId_createdAt_id_idx").on(
+      table.dynastyId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
 
 // m2m 结点表（Drizzle 无隐式多对多，需显式）
 export const poemsToTags = sqliteTable(
@@ -158,7 +180,10 @@ export const poemsToTags = sqliteTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.poemId, t.tagId] })],
+  (t) => [
+    primaryKey({ columns: [t.poemId, t.tagId] }),
+    index("poems_to_tags_tagId_poemId_idx").on(t.tagId, t.poemId),
+  ],
 );
 
 // ----------------------------------------------------------------------------

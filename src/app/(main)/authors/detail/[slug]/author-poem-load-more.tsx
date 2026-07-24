@@ -1,43 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadMoreControl } from "@/components/public/load-more-control";
-import type { ApiPoemListItems } from "@/server/api/router/poem";
-import type { RouterInputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-import { PoemListItem } from "./poem-list-item";
 
-type QueryKey =
-  | "getRecommendedList"
-  | "getLatestList"
-  | "getHotList"
-  | "getLatestListByDynasty";
+type AuthorPoem = { id: string; slug: string; title: string };
 
-interface PoemLoadMoreProps<T extends QueryKey> {
-  nextCursor?: string;
-  queryKey: T;
-  queryParams?: Omit<RouterInputs["poem"][T], "cursor" | "limit">;
-}
-
-export const PoemLoadMore = <T extends QueryKey>({
+export function AuthorPoemLoadMore({
+  authorId,
   nextCursor,
-  queryKey,
-  queryParams,
-}: PoemLoadMoreProps<T>) => {
+}: {
+  authorId: string;
+  nextCursor?: string;
+}) {
   const [cursor, setCursor] = useState<string>();
-  const [items, setItems] = useState<ApiPoemListItems>([]);
+  const [poems, setPoems] = useState<AuthorPoem[]>([]);
   const [nextPageCursor, setNextPageCursor] = useState(nextCursor);
   const processedAt = useRef(0);
-  // biome-ignore lint/suspicious/noExplicitAny: <any>
-  const query = (api.poem[queryKey] as any).useQuery(
-    {
-      cursor,
-      limit: 24,
-      ...queryParams,
-    },
-    {
-      enabled: cursor !== undefined,
-    },
+  const query = api.author.listPoems.useQuery(
+    { authorId, cursor, limit: 48 },
+    { enabled: cursor !== undefined },
   );
 
   useEffect(() => {
@@ -50,7 +33,7 @@ export const PoemLoadMore = <T extends QueryKey>({
     }
 
     processedAt.current = query.dataUpdatedAt;
-    setItems((poems) => [...poems, ...query.data.items]);
+    setPoems((items) => [...items, ...query.data.items]);
     setNextPageCursor(query.data.nextCursor);
     setCursor(undefined);
   }, [cursor, query.data, query.dataUpdatedAt]);
@@ -61,12 +44,18 @@ export const PoemLoadMore = <T extends QueryKey>({
 
   return (
     <section>
-      <div className="space-y-4">
-        {items.map((poem) => (
-          <PoemListItem key={poem.id} poem={poem} />
+      <div className="mt-6 grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 md:grid-cols-3">
+        {poems.map((poem) => (
+          <Link
+            className="line-clamp-1 hover:underline"
+            href={`/poems/detail/${poem.slug}`}
+            key={poem.id}
+            prefetch={false}
+          >
+            {poem.title}
+          </Link>
         ))}
       </div>
-
       <LoadMoreControl
         hasNext={!!nextPageCursor}
         isFetching={query.isFetching}
@@ -74,4 +63,4 @@ export const PoemLoadMore = <T extends QueryKey>({
       />
     </section>
   );
-};
+}

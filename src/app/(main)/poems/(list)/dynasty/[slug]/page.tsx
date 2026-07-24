@@ -1,9 +1,9 @@
 import { publicApi as api } from "@/trpc/server";
+import { PoemListItem } from "../../_components/poem-list-item";
+import { PoemLoadMore } from "../../_components/poem-load-more";
 
 // ISR：读页缓存，降 D1 读压
 export const revalidate = 600;
-import { PoemListItem } from "../../_components/poem-list-item";
-import { PoemLoadMore } from "../../_components/poem-load-more";
 
 export const generateMetadata = async ({
   params,
@@ -29,7 +29,7 @@ export default async function Home({
 }) {
   const { slug } = await params;
   const { items, dynasty, nextCursor } = await api.poem.getLatestListByDynasty({
-    limit: 20,
+    limit: 24,
     dynastySlug: slug,
   });
 

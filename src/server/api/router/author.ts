@@ -1,5 +1,17 @@
 import type { TRPCRouterRecord } from "@trpc/server";
-import { and, asc, count, eq, gt, gte, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  lt,
+  lte,
+  or,
+} from "drizzle-orm";
 import { z } from "zod";
 import { authors, dynasties, poems } from "@/server/db/schema";
 import { publicProcedure } from "../trpc";
@@ -29,13 +41,16 @@ const authorListWith = {
   dynasty: { columns: { name: true, slug: true } },
 } as const;
 
+const authorPageSize = 24;
+const authorPoemPageSize = 48;
+
 export const authorRouter = {
   // cursor分页接口
   getList: publicProcedure
     .input(
       z.object({
         dynastySlug: z.string().optional(),
-        limit: z.number().min(1).max(100).default(20),
+        limit: z.number().min(1).max(100).default(authorPageSize),
         cursor: z.string().optional(),
       }),
     )
@@ -97,7 +112,7 @@ export const authorRouter = {
     .input(
       z.object({
         dynastySlug: z.string().optional(),
-        pageSize: z.number().min(1).max(100).default(20),
+        pageSize: z.number().min(1).max(100).default(24),
         page: z.number().min(1).default(1),
       }),
     )
@@ -162,15 +177,61 @@ export const authorRouter = {
           birthDate: true,
           deathDate: true,
         },
-        with: {
-          dynasty: { columns: { name: true, slug: true } },
-          poems: { columns: { title: true, slug: true } },
-        },
+        with: { dynasty: { columns: { name: true, slug: true } } },
       });
 
       if (!row) return null;
 
-      return { ...row, _count: { poems: row.poems.length } };
+      const [result] = await ctx.db
+        .select({ count: count() })
+        .from(poems)
+        .where(eq(poems.authorId, row.id));
+
+      return { ...row, _count: { poems: result?.count ?? 0 } };
+    }),
+  listPoems: publicProcedure
+    .input(
+      z.object({
+        authorId: z.string(),
+        cursor: z.string().optional(),
+        limit: z.number().min(1).max(100).default(authorPoemPageSize),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      let where = eq(poems.authorId, input.authorId);
+      if (input.cursor) {
+        const cursor = await ctx.db.query.poems.findFirst({
+          columns: { id: true, authorId: true, createdAt: true },
+          where: eq(poems.id, input.cursor),
+        });
+        if (cursor?.authorId === input.authorId) {
+          where = and(
+            where,
+            or(
+              lt(poems.createdAt, cursor.createdAt),
+              and(
+                eq(poems.createdAt, cursor.createdAt),
+                lte(poems.id, cursor.id),
+              ),
+            ),
+          )!;
+        }
+      }
+
+      const rows = await ctx.db.query.poems.findMany({
+        columns: { id: true, slug: true, title: true },
+        where,
+        orderBy: [desc(poems.createdAt), desc(poems.id)],
+        limit: input.limit + 1,
+      });
+      const items = rows.slice();
+      const nextCursor =
+        items.length > input.limit ? items.pop()?.id : undefined;
+
+      return {
+        items,
+        nextCursor,
+      };
     }),
 
   findSlugById: publicProcedure

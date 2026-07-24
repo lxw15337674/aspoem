@@ -1,10 +1,10 @@
 import { publicApi as api } from "@/trpc/server";
-
-// ISR：读页缓存，降 D1 读压
-export const revalidate = 600;
 import { PoemListItem } from "./_components/poem-list-item";
 import { PoemLoadMore } from "./_components/poem-load-more";
 import { discover } from "./_components/sidebar-items";
+
+// ISR：读页缓存，降 D1 读压
+export const revalidate = 600;
 
 const discoverItem = discover.find((item) => item.title === "最近更新")!;
 
@@ -15,7 +15,7 @@ export const metadata = {
 
 export default async function Home() {
   const { items, nextCursor } = await api.poem.getLatestList({
-    limit: 20,
+    limit: 24,
   });
 
   return (

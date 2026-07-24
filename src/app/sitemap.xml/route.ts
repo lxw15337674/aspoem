@@ -20,7 +20,10 @@ function sitemapUrl(path: string) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const pageValue = url.searchParams.get("page");
-  const poemCount = await api.poem.sitemapCount();
+  const [poemCount, ciPaiMingPageCount] = await Promise.all([
+    api.poem.sitemapCount(),
+    api.tag.ciPaiMingPageCount(),
+  ]);
   const pageCount = Math.max(1, Math.ceil(poemCount / poemChunkSize));
 
   if (pageValue === null) {
@@ -45,7 +48,17 @@ export async function GET(request: Request) {
   ]);
   const staticUrls =
     page === 0
-      ? ["/poems", "/authors", "/tags", "/ci-pai-ming", "/quotes"]
+      ? [
+          "/poems",
+          "/authors",
+          "/tags",
+          "/ci-pai-ming",
+          "/quotes",
+          ...Array.from(
+            { length: Math.max(0, ciPaiMingPageCount - 1) },
+            (_, index) => `/ci-pai-ming/${index + 2}`,
+          ),
+        ]
       : [];
   const entries = [
     ...staticUrls.map((path) => ({
