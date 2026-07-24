@@ -45,7 +45,9 @@ jobs:
           git clone --depth 1 --branch "$SOURCE_REF" https://github.com/chinese-poetry/chinese-poetry.git "$CI_POETRY_DIR"
 
       - name: Record source revision
-        run: echo "SOURCE_REVISION=$(git -C \"$CI_POETRY_DIR\" rev-parse HEAD)" >> "$GITHUB_ENV"
+        run: |
+          source_revision="$(git -C "$CI_POETRY_DIR" rev-parse HEAD)"
+          echo "SOURCE_REVISION=$source_revision" >> "$GITHUB_ENV"
 
       - name: Apply pending D1 migrations
         run: pnpm exec wrangler d1 migrations apply aspoem --remote
